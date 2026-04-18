@@ -99,12 +99,19 @@ class ImageGenerationModule:
         
         # Create matted image (cropped image with alpha channel for transparency)
         if detected_object.cropped_mask is not None:
+            img_h, img_w = detected_object.cropped_image.shape[:2]
+            mask = detected_object.cropped_mask
+
+            # FIX: resize mask nếu kích thước khác cropped_image (tránh numpy broadcast crash)
+            if mask.shape[:2] != (img_h, img_w):
+                mask = cv2.resize(mask, (img_w, img_h), interpolation=cv2.INTER_NEAREST)
+
             # Apply mask to create transparency
-            mask_3d = detected_object.cropped_mask[..., np.newaxis] / 255.0
+            mask_3d = mask[..., np.newaxis] / 255.0
             matted_image = detected_object.cropped_image * mask_3d
-            
+
             # Convert to RGBA
-            alpha_channel = detected_object.cropped_mask[..., np.newaxis]
+            alpha_channel = mask[..., np.newaxis]
             matted_rgba = np.concatenate([matted_image.astype(np.uint8), alpha_channel], axis=2)
         else:
             # Use original cropped image if no mask available
@@ -325,6 +332,10 @@ class ImageGenerationModule:
 
     def _create_matted_image(self, rgb: np.ndarray, mask: np.ndarray) -> np.ndarray:
         """Create a matted image from RGB and mask"""
+        img_h, img_w = rgb.shape[:2]
+        # FIX: resize mask nếu kích thước không khớp với rgb
+        if mask.shape[:2] != (img_h, img_w):
+            mask = cv2.resize(mask, (img_w, img_h), interpolation=cv2.INTER_NEAREST)
         mask_float = mask[..., np.newaxis] / 255.0
         matted_image = rgb * mask_float
         alpha_channel = mask[..., np.newaxis]
