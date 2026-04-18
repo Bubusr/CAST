@@ -35,41 +35,15 @@ from ..utils.image_utils import load_image
 NUM_DEBUG = 2
 
 class SuppressOutput:
-    """Enhanced context manager to suppress Blender rendering output"""
-    
+    """Safe context manager to suppress standard output without crashing Jupyter/Colab kernels"""
     def __enter__(self):
-        # Store original file descriptors
         self._original_stdout = sys.stdout
         self._original_stderr = sys.stderr
-        
-        # Redirect Python stdout/stderr
         sys.stdout = StringIO()
         sys.stderr = StringIO()
-        
-        # Also redirect OS-level stdout/stderr (for C/C++ output)
-        self._stdout_fd = os.dup(1)
-        self._stderr_fd = os.dup(2)
-        
-        # Create null file descriptor
-        self._devnull = os.open(os.devnull, os.O_WRONLY)
-        
-        # Redirect file descriptors
-        os.dup2(self._devnull, 1)
-        os.dup2(self._devnull, 2)
-        
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        # Restore OS-level stdout/stderr
-        os.dup2(self._stdout_fd, 1)
-        os.dup2(self._stderr_fd, 2)
-        
-        # Close file descriptors
-        os.close(self._stdout_fd)
-        os.close(self._stderr_fd)
-        os.close(self._devnull)
-        
-        # Restore Python stdout/stderr
         sys.stdout = self._original_stdout
         sys.stderr = self._original_stderr
 

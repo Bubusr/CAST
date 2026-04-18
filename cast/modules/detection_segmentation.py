@@ -34,7 +34,7 @@ from ram import inference_ram
 import torchvision.transforms as TS
 
 from ..core.common import DetectedObject, BoundingBox
-from ..utils.image_utils import crop_image_with_bbox, save_image
+from ..utils.image_utils import crop_image_with_bbox, save_image, crop_image_square_padding
 from ..config.settings import config
 
 
@@ -226,9 +226,9 @@ class DetectionSegmentationModule:
                 confidence=confidence
             )
             
-            # Crop the object from the image
+            # Crop the object from the image with square padding
             crop_coords = (bbox.x1, bbox.y1, bbox.x2, bbox.y2)
-            detected_obj.cropped_image = crop_image_with_bbox(image, crop_coords)
+            detected_obj.cropped_image = crop_image_square_padding(image, crop_coords)
 
             detected_objects.append(detected_obj)
 
@@ -268,11 +268,18 @@ class DetectionSegmentationModule:
             boxes_tensor, image.shape[:2]
         ).to(self.device)
         
-        # Run SAM inference
+        # Prepare point prompts (center of bbox) for semantic orientation
+        center_points = torch.tensor([
+            [(obj.bbox.x1 + obj.bbox.x2) / 2, (obj.bbox.y1 + obj.bbox.y2) / 2]
+            for obj in detected_objects
+        ], dtype=torch.float32, device=self.device).unsqueeze(1)
+        point_labels = torch.ones((len(detected_objects), 1), device=self.device)
+
+        # Run SAM inference with both boxes and point prompts
         with torch.no_grad():
             masks, _, _ = predictor.predict_torch(
-                point_coords=None,
-                point_labels=None,
+                point_coords=center_points,
+                point_labels=point_labels,
                 boxes=transformed_boxes,
                 multimask_output=False,
             )
@@ -281,8 +288,20 @@ class DetectionSegmentationModule:
         for i, obj in enumerate(detected_objects):
             mask = masks[i].cpu().numpy()[0]  # Shape: (H, W)
             
-            # Convert to binary mask (0 or 255)
+            # 1. Convert to binary mask (0 or 255)
             binary_mask = (mask * 255).astype(np.uint8)
+            
+            # 2. [ALPHA REFINEMENT] Smooth jagged edges
+            # Morphological closing to fill small holes
+            kernel = np.ones((5,5), np.uint8)
+            binary_mask = cv2.morphologyEx(binary_mask, cv2.MORPH_CLOSE, kernel)
+            
+            # Gaussian blur for soft edges (anti-aliasing)
+            binary_mask = cv2.GaussianBlur(binary_mask, (7, 7), 0)
+            
+            # Threshold again to keep it binary but smooth
+            _, binary_mask = cv2.threshold(binary_mask, 127, 255, cv2.THRESH_BINARY)
+            
             obj.mask = binary_mask
             
             # Create occlusion mask (objects that are not background or current object)

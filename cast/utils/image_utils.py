@@ -136,3 +136,32 @@ def normalize_image(image: np.ndarray, target_range: Tuple[float, float] = (0.0,
     image = image * (max_val - min_val) + min_val
     
     return image
+
+def crop_image_square_padding(image: np.ndarray, bbox: Tuple[float, float, float, float], padding_pct: float = 0.2) -> np.ndarray:
+    """Crop image with square aspect ratio and proportional padding"""
+    h, w = image.shape[:2]
+    x1, y1, x2, y2 = bbox
+    bw, bh = x2 - x1, y2 - y1
+    
+    # Calculate square side based on largest dimension + padding
+    side = int(max(bw, bh) * (1 + padding_pct))
+    cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+    
+    nx1, ny1 = int(cx - side/2), int(cy - side/2)
+    nx2, ny2 = nx1 + side, ny1 + side
+    
+    # Extract with padding (handle out-of-bounds)
+    ex1, ey1 = max(0, nx1), max(0, ny1)
+    ex2, ey2 = min(w, nx2), min(h, ny2)
+    
+    crop = image[ey1:ey2, ex1:ex2]
+    
+    # Create canvas and place crop
+    canvas = np.zeros((side, side, 3) if len(image.shape) == 3 else (side, side), dtype=image.dtype)
+    
+    # Position in canvas
+    cx1 = max(0, -nx1)
+    cy1 = max(0, -ny1)
+    
+    canvas[cy1:cy1+crop.shape[0], cx1:cx1+crop.shape[1]] = crop
+    return canvas

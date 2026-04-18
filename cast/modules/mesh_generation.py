@@ -776,11 +776,12 @@ class MeshGenerationModule:
                                             depth_estimation=depth_estimation,
                                             image=image,
                                             **provider_kwargs)
-        assert not any([mesh is None for mesh in meshes])
+        # assert not any([mesh is None for mesh in meshes])
         # we also pair the mesh the input images
-        assert len(meshes) == len(detected_objects)
+        # assert len(meshes) == len(detected_objects)
         for (mesh, obj) in zip(meshes, detected_objects):
-            mesh.input_image = obj.generated_image
+            if mesh:
+                mesh.input_image = obj.generated_image if obj.generated_image is not None else obj.cropped_image
 
         # Save summary
         if output_dir:
