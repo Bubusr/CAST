@@ -26,7 +26,16 @@ from GroundingDINO.groundingdino.util.slconfig import SLConfig
 from GroundingDINO.groundingdino.util.utils import clean_state_dict, get_phrases_from_posmap
 
 # Segment Anything imports
-from segment_anything import build_sam, build_sam_hq, SamPredictor
+try:
+    from segment_anything_hq import build_sam_hq, SamPredictor
+    # Alias build_sam_hq to build_sam for compatibility if needed elsewhere
+    build_sam = build_sam_hq 
+except ImportError:
+    try:
+        from segment_anything import build_sam, SamPredictor
+        build_sam_hq = build_sam # Fallback
+    except ImportError:
+        print("❌ Error: segment_anything not found. Please install it.")
 
 # RAM imports
 from ram.models import ram
