@@ -351,12 +351,13 @@ class CASTPipeline:
             valid_pairs = [(mesh, obj) for mesh, obj in zip(meshes, detected_objects) if mesh is not None]
             
             if not valid_pairs:
-                raise RuntimeError("No successful mesh generations")
+                print("⚠️ No successful mesh generations, skipping 3D processing for this image.")
+                meshes, valid_objects = [], []
+            else:
+                meshes, valid_objects = zip(*valid_pairs)
+                meshes, valid_objects = list(meshes), list(valid_objects)
             
-            meshes, valid_objects = zip(*valid_pairs)
-            meshes, valid_objects = list(meshes), list(valid_objects)
-            
-            if len(meshes) >  0 and len(valid_objects) > 0 and save_intermediates:
+            if len(meshes) > 0 and len(valid_objects) > 0 and save_intermediates:
                 mesh_data = {'meshes': meshes, 'objects': valid_objects}
                 self._save_stage_result('mesh', mesh_data, run_output_dir)
         
