@@ -59,7 +59,7 @@ class CASTPipeline:
             enable_scene_graph_opt: Whether to enable scene graph optimization
             debug: Whether to enable debug mode
         """
-        self.output_dir = output_dir or config.paths.output_dir
+        self.output_dir = Path(output_dir or config.paths.output_dir)
         
         # Initialize all modules
         print("Initializing CAST pipeline modules...")
