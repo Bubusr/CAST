@@ -22,7 +22,7 @@ def generate_mtl(obj_path, material_type='soft'):
             f.write("Ka 0.200 0.200 0.200\n")
             f.write("Kd 1.000 1.000 1.000\n")
             f.write("Ks 0.800 0.800 0.800\n")
-            f.write("Ns 200.000\n") # High gloss
+            f.write("Ns 200.000\n")  # High gloss
             f.write("illum 2\n")
         elif 'glass' in material_type:
             f.write("Ka 0.000 0.000 0.000\n")
@@ -32,17 +32,29 @@ def generate_mtl(obj_path, material_type='soft'):
                 f.write("Ks 1.000 1.000 1.000\nNs 300.000\nd 0.8\nillum 3\n")
             else:
                 f.write("Ks 0.800 0.800 0.800\nNs 150.000\nd 0.3\nillum 4\n")
-        elif 'wood' in material_type or 'stone' in material_type:
+        elif 'plastic' in material_type:
+            f.write("Ka 0.100 0.100 0.100\n")
+            f.write("Kd 1.000 1.000 1.000\n")
+            f.write("Ks 0.300 0.300 0.300\n")
+            f.write("Ns 80.000\n")  # Semi-gloss
+            f.write("illum 2\n")
+        elif 'wood' in material_type:
             f.write("Ka 0.100 0.100 0.100\n")
             f.write("Kd 0.800 0.800 0.800\n")
             f.write("Ks 0.100 0.100 0.100\n")
-            f.write("Ns 20.000\n") # Rough
+            f.write("Ns 20.000\n")  # Rough
             f.write("illum 2\n")
-        else: # soft / fabric / default
+        elif 'stone' in material_type:
+            f.write("Ka 0.050 0.050 0.050\n")
+            f.write("Kd 0.700 0.700 0.700\n")
+            f.write("Ks 0.050 0.050 0.050\n")
+            f.write("Ns 10.000\n")  # Very rough
+            f.write("illum 2\n")
+        else:  # soft / fabric / default
             f.write("Ka 0.100 0.100 0.100\n")
             f.write("Kd 1.000 1.000 1.000\n")
             f.write("Ks 0.000 0.000 0.000\n")
-            f.write("Ns 5.000\n") # Very matte
+            f.write("Ns 5.000\n")  # Very matte
             f.write("illum 1\n")
             
         # Try to bind the generated texture if it exists

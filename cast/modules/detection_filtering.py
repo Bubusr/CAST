@@ -217,12 +217,14 @@ class DetectionFilteringModule:
             # Create mapping from object ID to occlusion level and caption
             occlusion_map = {}
             caption_map = {}
+            material_map = {}
             if isinstance(keep_objects, list):
                 for keep_item in keep_objects:
                     if isinstance(keep_item, dict):
                         obj_id = keep_item.get("id")
                         occlusion_level = keep_item.get("occlusion_level", "no_occlusion")
                         caption = keep_item.get("caption")
+                        material = keep_item.get("material", "soft")
                         # fallback to no occlusion
                         if occlusion_level not in OCCLUSION_LEVELS:
                             occlusion_level = "no_occlusion"
@@ -230,6 +232,7 @@ class DetectionFilteringModule:
                             occlusion_map[obj_id] = occlusion_level
                             if caption:
                                 caption_map[obj_id] = caption
+                            material_map[obj_id] = material
                     # elif isinstance(keep_item, int):
                         # Fallback for old format
                         # occlusion_map[keep_item] = "no_occlusion"
@@ -243,6 +246,7 @@ class DetectionFilteringModule:
                     # Add occlusion level and VLM caption to the object
                     obj.occlusion_level = occlusion_map.get(obj.id, "no_occlusion")
                     obj.vlm_caption = caption_map.get(obj.id)
+                    obj.material = material_map.get(obj.id, "soft")
                     if enable_occlusion_filter and OCCLUSION_LEVELS.get(obj.occlusion_level, 0) >= OCCLUSION_LEVELS.get(occlusion_threshold, 2):
                         print(f"Discarding object {obj.id} ({obj.description}) due to {obj.occlusion_level}")
                         continue
@@ -355,7 +359,8 @@ class DetectionFilteringModule:
                     "description": obj.description,
                     "confidence": obj.confidence,
                     "occlusion_level": getattr(obj, 'occlusion_level', 'no_occlusion'),
-                    "vlm_caption": getattr(obj, 'vlm_caption', None)
+                    "vlm_caption": getattr(obj, 'vlm_caption', None),
+                    "material": getattr(obj, 'material', 'soft')
                 }
                 for obj in filtered_objects
             ]

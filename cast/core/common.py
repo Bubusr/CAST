@@ -43,6 +43,7 @@ class DetectedObject:
     occlusion_level: str = "no_occlusion"  # no_occlusion, some_occlusion, severe_occlusion
     generated_image: Optional[np.ndarray] = None
     vlm_caption: Optional[str] = None  # VLM-generated concise caption for improved inpainting
+    material: str = "soft"  # Material extracted by VLM (e.g., 'wood', 'metal', 'glass', 'soft')
 
 @dataclass
 class MeshPose:

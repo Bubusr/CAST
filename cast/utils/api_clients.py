@@ -260,11 +260,29 @@ class Tripo3DClient:
 
 
 class QwenVLClient:
-    """Wrapper for Qwen-VL API calls"""
+    """Wrapper for Qwen-VL / OpenAI-compatible API calls (supports Qwen, GPT-4o-mini, GitHub Models)"""
 
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or config.api.dashscope_key
-        self.client = OpenAI(api_key=self.api_key, base_url="https://dashscope.aliyuncs.com/compatible-mode/v1")
+        # Priority: explicit key → DASHSCOPE_API_KEY (Qwen) → OPENAI_API_KEY (OpenAI/GitHub Models)
+        self.api_key = (api_key
+                        or config.api.dashscope_key
+                        or os.getenv("OPENAI_API_KEY"))
+        # Dynamic base_url: set OPENAI_BASE_URL env var to override
+        # Default: DashScope (Qwen). Set to https://api.openai.com/v1 for real OpenAI.
+        _base_url = os.getenv(
+            "OPENAI_BASE_URL",
+            "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        )
+        self.client = OpenAI(api_key=self.api_key, base_url=_base_url)
+        # Auto-detect model:
+        #   VLM_MODEL env var (explicit) > gpt-4o-mini (when Azure/OpenAI endpoint) > Qwen default
+        if os.getenv("VLM_MODEL"):
+            self._vlm_model = os.getenv("VLM_MODEL")
+        elif "dashscope" not in _base_url:
+            # Azure GitHub Models or real OpenAI endpoint → use gpt-4o-mini
+            self._vlm_model = "gpt-4o-mini"
+        else:
+            self._vlm_model = config.models.qwen_model
 
     def analyze_scene_graph(self, image: Union[np.ndarray, str], system_prompt: str, user_prompt: str) -> str:
         """Analyze image to extract scene graph relationships"""
@@ -274,7 +292,7 @@ class QwenVLClient:
             image_url = image
 
         try:
-            completion = self.client.chat.completions.create(model=config.models.qwen_model,
+            completion = self.client.chat.completions.create(model=self._vlm_model,
                                                              messages=[{
                                                                  "role": "system",
                                                                  "content": [{
@@ -318,7 +336,7 @@ class QwenVLClient:
             image_url = image
 
         try:
-            completion = self.client.chat.completions.create(model=config.models.qwen_model,
+            completion = self.client.chat.completions.create(model=self._vlm_model,
                                                              messages=[{
                                                                  "role": "system",
                                                                  "content": [{
@@ -369,7 +387,7 @@ class QwenVLClient:
             annotated_url = annotated_image
 
         # Create system prompt for detection filtering with occlusion assessment
-        system_prompt = """You are an expert computer vision system for filtering object detections and assessing occlusion levels. Your task is to identify meaningful constituent objects, remove spurious detections, rate occlusion levels, and provide concise captions for kept objects.
+        system_prompt = """You are an expert computer vision system for filtering object detections and assessing occlusion levels. Your task is to identify meaningful constituent objects, remove spurious detections, rate occlusion levels, estimate physical material, and provide concise captions for kept objects.
 
 Rules for filtering:
 1. Remove scene-level detections (e.g., room, sky, ground, wall, background)
@@ -387,6 +405,9 @@ For each object you decide to keep, assess its occlusion level(Self-Occlusion is
 - "some_occlusion": Object has little/moderate occlusion (1-50% part occluded)
 - "severe_occlusion": Object is heavily occluded, only small parts visible (more than 50% part occluded)
 
+Material Estimation:
+For each object you decide to keep, estimate its physical material structure for PBR rendering. Choose ONE of the following valid tags that best matches: "soft", "fabric", "metal", "glass", "wood", "stone", "plastic".
+
 Caption Generation:
 For each object you keep, generate a concise, descriptive caption (3-8 words) that captures:
 - The object's visual appearance (color, material, style)
@@ -395,23 +416,28 @@ For each object you keep, generate a concise, descriptive caption (3-8 words) th
 Example: "red leather office chair" or "modern silver laptop computer"
 
 You must respond with a JSON object containing:
-- "keep": list of objects to keep, each with {"id": int, "occlusion_level": str, "caption": str}
+- "keep": list of objects to keep, each with {"id": int, "occlusion_level": str, "caption": str, "material": str}
 - "remove": list of object IDs to remove with reasons
 - "reasoning": overall reasoning for the filtering decisions"""
 
         # Create user prompt with detection data
         user_prompt = f"""Analyze these object detections and filter out spurious/scene-level detections.
-For each object you decide to keep, assess its occlusion level and generate a concise descriptive caption.
+For each object you decide to keep, assess its occlusion level, estimate its physical material, and generate a concise descriptive caption.
 
 Detection data:
 {detection_data}
 
-Please examine both the original image and the annotated image with numbered bounding boxes. Filter the detections to keep only meaningful constituent objects that can be reconstructed in 3D, rate their occlusion levels, and provide descriptive captions for each kept object.
+Please examine both the original image and the annotated image with numbered bounding boxes. Filter the detections to keep only meaningful constituent objects that can be reconstructed in 3D, rate their occlusion levels, estimate material (one of: soft, fabric, metal, glass, wood, stone, plastic), and provide descriptive captions for each kept object.
 
-Return your response as a JSON object with "keep" (including id, occlusion_level, and caption for each object), "remove", and "reasoning" fields."""
+Return your response as a JSON object with:
+- "keep": list of objects, each with {{"id": int, "occlusion_level": str, "caption": str, "material": str}}
+- "remove": list of objects to remove with reasons
+- "reasoning": overall reasoning
+
+IMPORTANT: Every entry in "keep" MUST include the "material" field."""
 
         try:
-            completion = self.client.chat.completions.create(model=config.models.qwen_model,
+            completion = self.client.chat.completions.create(model=self._vlm_model,
                                                              messages=[{
                                                                  "role": "system",
                                                                  "content": [{
@@ -508,7 +534,6 @@ Return your response as a JSON object with "keep" (including id, occlusion_level
                                         return content.image
                                     elif 'image' in content and content['image']:
                                         return content['image']
-                import ipdb; ipdb.set_trace()
                 print("No image found in Qwen response")
                 return None
             else:
@@ -604,7 +629,7 @@ Provide your assessment as a JSON object with score (0-10), passed (bool), reaso
 
         try:
             completion = self.client.chat.completions.create(
-                model=config.models.qwen_model,
+                model=self._vlm_model,
                 messages=[{
                     "role": "system",
                     "content": [{
