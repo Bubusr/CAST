@@ -165,3 +165,40 @@ def crop_image_square_padding(image: np.ndarray, bbox: Tuple[float, float, float
     
     canvas[cy1:cy1+crop.shape[0], cx1:cx1+crop.shape[1]] = crop
     return canvas
+
+def upscale_image_resrgan(image: np.ndarray, output_path: Optional[Path] = None, model_name: str = "realesrgan-x4plus") -> np.ndarray:
+    """Upscale image using Real-ESRGAN CLI tool"""
+    import subprocess
+    import tempfile
+    
+    # Create temporary files for processing
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        in_file = tmp_path / "input.png"
+        out_file = tmp_path / "output.png"
+        
+        # Save current image to temp
+        save_image(image, in_file)
+        
+        # Run Real-ESRGAN
+        cmd = [
+            "realesrgan-ncnn-vulkan",
+            "-i", str(in_file),
+            "-o", str(out_file),
+            "-n", model_name,
+            "-s", "4", # Upscale by 4x
+            "-m", "/usr/local/bin/models" # CRITICAL: explicitly set model path for Colab
+        ]
+        
+        try:
+            subprocess.run(cmd, check=True, capture_output=True)
+            if out_file.exists():
+                upscaled = load_image(out_file)
+                if output_path:
+                    save_image(upscaled, output_path)
+                return upscaled
+        except Exception as e:
+            print(f"Error upscaling image: {e}")
+            return image # Return original on failure
+    
+    return image

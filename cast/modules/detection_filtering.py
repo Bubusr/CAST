@@ -218,6 +218,7 @@ class DetectionFilteringModule:
             occlusion_map = {}
             caption_map = {}
             material_map = {}
+            pbr_map = {} # Store metallic and roughness
             if isinstance(keep_objects, list):
                 for keep_item in keep_objects:
                     if isinstance(keep_item, dict):
@@ -225,6 +226,16 @@ class DetectionFilteringModule:
                         occlusion_level = keep_item.get("occlusion_level", "no_occlusion")
                         caption = keep_item.get("caption")
                         material = keep_item.get("material", "soft")
+                        try:
+                            metallic = float(keep_item.get("metallic", 0.0))
+                        except (ValueError, TypeError):
+                            metallic = 0.0
+                        
+                        try:
+                            roughness = float(keep_item.get("roughness", 0.5))
+                        except (ValueError, TypeError):
+                            roughness = 0.5
+                        
                         # fallback to no occlusion
                         if occlusion_level not in OCCLUSION_LEVELS:
                             occlusion_level = "no_occlusion"
@@ -233,9 +244,7 @@ class DetectionFilteringModule:
                             if caption:
                                 caption_map[obj_id] = caption
                             material_map[obj_id] = material
-                    # elif isinstance(keep_item, int):
-                        # Fallback for old format
-                        # occlusion_map[keep_item] = "no_occlusion"
+                            pbr_map[obj_id] = {"metallic": metallic, "roughness": roughness}
             
             keep_ids = set(occlusion_map.keys())
             
@@ -247,12 +256,18 @@ class DetectionFilteringModule:
                     obj.occlusion_level = occlusion_map.get(obj.id, "no_occlusion")
                     obj.vlm_caption = caption_map.get(obj.id)
                     obj.material = material_map.get(obj.id, "soft")
+                    
+                    # Add PBR values
+                    pbr_data = pbr_map.get(obj.id, {"metallic": 0.0, "roughness": 0.5})
+                    obj.metallic = pbr_data["metallic"]
+                    obj.roughness = pbr_data["roughness"]
+                    
                     if enable_occlusion_filter and OCCLUSION_LEVELS.get(obj.occlusion_level, 0) >= OCCLUSION_LEVELS.get(occlusion_threshold, 2):
                         print(f"Discarding object {obj.id} ({obj.description}) due to {obj.occlusion_level}")
                         continue
                     filtered_objects.append(obj)
                     caption_info = f" [VLM caption: {obj.vlm_caption}]" if obj.vlm_caption else ""
-                    print(f"Keeping object {obj.id} ({obj.description}) with occlusion level: {obj.occlusion_level}{caption_info}")
+                    print(f"Keeping object {obj.id} ({obj.description}) [Material: {obj.material}, M: {obj.metallic}, R: {obj.roughness}]")
                 else:
                     # Find removal reason
                     remove_reason = "Not specified"

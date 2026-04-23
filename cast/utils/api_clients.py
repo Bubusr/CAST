@@ -278,16 +278,16 @@ class QwenVLClient:
     """Wrapper for Qwen-VL / OpenAI-compatible API calls (supports Qwen, GPT-4o-mini, GitHub Models)"""
 
     def __init__(self, api_key: Optional[str] = None):
-        # Priority: explicit key → DASHSCOPE_API_KEY (Qwen) → OPENAI_API_KEY (OpenAI/GitHub Models)
+        # Priority: explicit key → GITHUB_TOKEN (Free) → OPENAI_API_KEY → DASHSCOPE_API_KEY
         self.api_key = (api_key
-                        or config.api.dashscope_key
-                        or os.getenv("OPENAI_API_KEY"))
-        # Dynamic base_url: set OPENAI_BASE_URL env var to override
-        # Default: DashScope (Qwen). Set to https://api.openai.com/v1 for real OpenAI.
-        _base_url = os.getenv(
-            "OPENAI_BASE_URL",
-            "https://dashscope.aliyuncs.com/compatible-mode/v1"
-        )
+                        or os.getenv("GITHUB_TOKEN")
+                        or os.getenv("OPENAI_API_KEY")
+                        or config.api.dashscope_key)
+        
+        # Default to GitHub Models endpoint if GITHUB_TOKEN is present
+        _default_base = "https://models.inference.ai.azure.com" if os.getenv("GITHUB_TOKEN") else "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        
+        _base_url = os.getenv("OPENAI_BASE_URL", _default_base)
         self.client = OpenAI(api_key=self.api_key, base_url=_base_url)
         # Auto-detect model:
         #   VLM_MODEL env var (explicit) > gpt-4o-mini (when Azure/OpenAI endpoint) > Qwen default
@@ -420,32 +420,31 @@ For each object you decide to keep, assess its occlusion level(Self-Occlusion is
 - "some_occlusion": Object has little/moderate occlusion (1-50% part occluded)
 - "severe_occlusion": Object is heavily occluded, only small parts visible (more than 50% part occluded)
 
-Material Estimation:
-For each object you decide to keep, estimate its physical material structure for PBR rendering. Choose ONE of the following valid tags that best matches: "soft", "fabric", "metal", "glass", "wood", "stone", "plastic".
+Material & PBR Estimation:
+For each object you decide to keep, estimate its physical material structure for PBR rendering:
+- "material": Choose ONE of: "soft", "fabric", "metal", "glass", "wood", "stone", "plastic".
+- "metallic": Estimate the metallic value (0.0 for non-metal, 1.0 for pure metal). 
+- "roughness": Estimate the surface roughness (0.0 for perfectly smooth/mirrored, 1.0 for very matte).
 
 Caption Generation:
-For each object you keep, generate a concise, descriptive caption (3-8 words) that captures:
-- The object's visual appearance (color, material, style)
-- Its key characteristics or distinguishing features or quantity
-- Any notable attributes visible in the image
-Example: "red leather office chair" or "modern silver laptop computer"
+For each object you keep, generate a concise, descriptive caption (3-8 words).
 
 You must respond with a JSON object containing:
-- "keep": list of objects to keep, each with {"id": int, "occlusion_level": str, "caption": str, "material": str}
+- "keep": list of objects to keep, each with {"id": int, "occlusion_level": str, "caption": str, "material": str, "metallic": float, "roughness": float}
 - "remove": list of object IDs to remove with reasons
 - "reasoning": overall reasoning for the filtering decisions"""
 
         # Create user prompt with detection data
         user_prompt = f"""Analyze these object detections and filter out spurious/scene-level detections.
-For each object you decide to keep, assess its occlusion level, estimate its physical material, and generate a concise descriptive caption.
+For each object you decide to keep, assess its occlusion level, estimate its physical material (including PBR metallic and roughness values), and generate a concise descriptive caption.
 
 Detection data:
 {detection_data}
 
-Please examine both the original image and the annotated image with numbered bounding boxes. Filter the detections to keep only meaningful constituent objects that can be reconstructed in 3D, rate their occlusion levels, estimate material (one of: soft, fabric, metal, glass, wood, stone, plastic), and provide descriptive captions for each kept object.
+Please examine both the original image and the annotated image with numbered bounding boxes. Filter the detections to keep only meaningful constituent objects that can be reconstructed in 3D, rate their occlusion levels, estimate material (one of: soft, fabric, metal, glass, wood, stone, plastic), metallic (0.0-1.0), roughness (0.0-1.0), and provide descriptive captions for each kept object.
 
 Return your response as a JSON object with:
-- "keep": list of objects, each with {{"id": int, "occlusion_level": str, "caption": str, "material": str}}
+- "keep": list of objects, each with {{"id": int, "occlusion_level": str, "caption": str, "material": str, "metallic": float, "roughness": float}}
 - "remove": list of objects to remove with reasons
 - "reasoning": overall reasoning
 
@@ -1169,6 +1168,15 @@ class Hunyuan3DClient:
             print(f"Error loading Hunyuan3D-Omni model: {e}")
             return False
 
+    def unload_model(self):
+        """Unload the Hunyuan3D-Omni pipeline to free VRAM"""
+        self.pipeline = None
+        import gc
+        gc.collect()
+        import torch
+        torch.cuda.empty_cache()
+        print("Hunyuan3D-Omni model unloaded from VRAM")
+
     def normalize_point_cloud(self, points: np.ndarray, scale: float = 0.98) -> np.ndarray:
         """
         Normalize point cloud to fit within [-scale, scale] range
@@ -1340,6 +1348,15 @@ class Hunyuan3DPaintClient:
             traceback.print_exc()
             print(f"Error loading Hunyuan3D Paint model: {e}")
             return False
+
+    def unload_model(self):
+        """Unload the Hunyuan3D-Paint pipeline to free VRAM"""
+        self.pipeline = None
+        import gc
+        gc.collect()
+        import torch
+        torch.cuda.empty_cache()
+        print("Hunyuan3D-Paint model unloaded from VRAM")
 
     def generate_texture(self,
                          mesh_path: Union[str, Path],

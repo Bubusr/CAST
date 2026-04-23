@@ -341,6 +341,14 @@ class DepthEstimationModule:
             self._save_results(depth_estimation, image, output_dir, detected_objects)
         
         print("Depth estimation pipeline complete.")
+        
+        # 🧠 Aggressive RAM Unload to prevent memory accumulation
+        self.model = None
+        import gc
+        gc.collect()
+        import torch
+        torch.cuda.empty_cache()
+        
         return depth_estimation
     
     def _save_results(self, depth_estimation: DepthEstimation, 

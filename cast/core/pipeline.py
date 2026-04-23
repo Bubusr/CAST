@@ -17,8 +17,9 @@ from ..modules.mesh_generation import MeshGenerationModule
 from ..modules.pose_estimation import PoseEstimationModule
 from ..modules.scene_graph_optimization import SceneGraphOptimizationModule
 
-from .common import SceneReconstruction, OCCLUSION_LEVELS
-from ..utils.image_utils import load_image, save_image
+from .common import SceneReconstruction, OCCLUSION_LEVELS, Mesh3D
+from ..utils.image_utils import load_image, save_image, upscale_image_resrgan
+from ..modules.mesh_refiner import MeshRefiner
 from ..config.settings import config
 
 class CASTPipeline:
@@ -75,6 +76,7 @@ class CASTPipeline:
             debug=debug
         )
         self.scene_graph_module = SceneGraphOptimizationModule() if enable_scene_graph_opt else None
+        self.refiner_module = MeshRefiner()
         self.debug = debug
         
         print("CAST pipeline initialized successfully")
@@ -324,6 +326,27 @@ class CASTPipeline:
                     self._save_generation_results(detected_objects, run_output_dir)
 
         
+        # 🧹 CRITICAL VRAM CLEANUP: Unload early models to make room for Hunyuan
+        print("  🧹 Unloading Detection & Depth models to free VRAM for 3D Generation...")
+        if hasattr(self, 'detection_module') and self.detection_module is not None:
+            if hasattr(self.detection_module, 'ram_model'):
+                self.detection_module.ram_model = None
+            if hasattr(self.detection_module, 'grounding_dino_model'):
+                self.detection_module.grounding_dino_model = None
+            if hasattr(self.detection_module, 'sam_predictor'):
+                self.detection_module.sam_predictor = None
+        
+        if hasattr(self, 'depth_module') and self.depth_module is not None:
+            if hasattr(self.depth_module, 'model'):
+                self.depth_module.model = None
+                
+        # Force garbage collection and CUDA cache empty
+        import gc
+        import torch
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            
         # Step 3: 3D Mesh Generation
         print("\n" + "="*60)
         print("STEP 3: 3D Mesh Generation")
@@ -360,6 +383,36 @@ class CASTPipeline:
             if len(meshes) > 0 and len(valid_objects) > 0 and save_intermediates:
                 mesh_data = {'meshes': meshes, 'objects': valid_objects}
                 self._save_stage_result('mesh', mesh_data, run_output_dir)
+
+            # 🚀 MASTER LEVEL REFINEMENT: Quad Remesh, PBR, and Texture SR
+            print("\n" + "="*60)
+            print("STEP 3.5: AAA Mesh Refinement & Texture Enhancement")
+            print("="*60)
+            
+            refined_meshes = []
+            for i, (mesh, obj) in enumerate(zip(meshes, valid_objects)):
+                if mesh and mesh.file_path:
+                    print(f"Refining object {i+1}/{len(valid_objects)}: {obj.description}...")
+                    
+                    # 2. Blender Refinement (Subsurf + PBR)
+                    refined_path = self.refiner_module.refine_mesh(mesh.file_path, obj)
+                    if refined_path:
+                        # Update mesh data with refined file
+                        mesh.file_path = refined_path
+                        # Re-load vertices and faces from refined mesh if needed for pose
+                        import trimesh
+                        m = trimesh.load(refined_path)
+                        if isinstance(m, trimesh.Scene):
+                            m = m.dump(concatenate=True)
+                        mesh.vertices = np.asarray(m.vertices)
+                        mesh.faces = np.asarray(m.faces)
+                        print(f"  Successfully refined and upscaled {obj.description}")
+                    
+                    refined_meshes.append(mesh)
+                else:
+                    refined_meshes.append(mesh)
+            
+            meshes = refined_meshes
         
         # Step 4: Pose Estimation
         print("\n" + "="*60)

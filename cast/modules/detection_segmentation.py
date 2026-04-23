@@ -266,14 +266,75 @@ class DetectionSegmentationModule:
         if not detected_objects:
             print("No objects to segment")
             return detected_objects
+           # Prepare for SAM
+        print(f"Running SAM for {len(detected_objects)} objects...")
         
-        print(f"Running SAM segmentation on {len(detected_objects)} objects...")
+        # Aggressive RAM Unload: Grounding DINO is no longer needed
+        self.model = None
+        import gc
+        gc.collect()
+        torch.cuda.empty_cache()
         
-        # Load SAM predictor
-        predictor = self._load_sam_predictor(use_sam_hq)
-        predictor.set_image(image)
+        # Load SAM
+        self.load_sam()
         
-        # Prepare bounding boxes for SAM
+        for i, obj in enumerate(detected_objects):
+            # 1. Square Padding & Centering (Fixes "Chipped/Distorted Mesh")
+            # Calculate square bounding box with padding
+            x1, y1, x2, y2 = obj.box
+            w = x2 - x1
+            h = y2 - y1
+            
+            # Make it square
+            side = max(w, h)
+            padding_ratio = 0.15 # 15% padding
+            side_with_padding = int(side * (1 + 2 * padding_ratio))
+            
+            center_x = (x1 + x2) / 2
+            center_y = (y1 + y2) / 2
+            
+            # New square coordinates
+            new_x1 = max(0, int(center_x - side_with_padding / 2))
+            new_y1 = max(0, int(center_y - side_with_padding / 2))
+            new_x2 = min(image_rgb.shape[1], int(center_x + side_with_padding / 2))
+            new_y2 = min(image_rgb.shape[0], int(center_y + side_with_padding / 2))
+            
+            # Update object box to the squared version for better mesh generation
+            obj.box = [new_x1, new_y1, new_x2, new_y2]
+            
+            # 2. Point Prompting (Fixes "Occlusion/Stuck Objects")
+            # Use the center of the original box as a point prompt
+            input_point = np.array([[center_x, center_y]])
+            input_label = np.array([1]) # Positive prompt
+            
+            # Run SAM with both box and point prompt for maximum accuracy
+            self.predictor.set_image(image_rgb)
+            masks, scores, logits = self.predictor.predict(
+                point_coords=input_point,
+                point_labels=input_label,
+                box=np.array([x1, y1, x2, y2]), # Use original box for localization
+                multimask_output=False,
+            )
+            
+            mask = masks[0]
+            obj.mask = (mask.astype(np.uint8) * 255)
+            
+            # 3. Mask Smoothing (Fixes "Jagged/Spiky Mesh")
+            # Apply light Gaussian Blur to smooth the edges
+            import cv2
+            obj.mask = cv2.GaussianBlur(obj.mask, (5, 5), 0)
+            _, obj.mask = cv2.threshold(obj.mask, 128, 255, cv2.THRESH_BINARY)
+            
+            # Crop using the new square box
+            obj.cropped_image = image_rgb[new_y1:new_y2, new_x1:new_x2]
+            obj.cropped_mask = obj.mask[new_y1:new_y2, new_x1:new_x2]
+            
+            # Create matted image
+            mask_float = (obj.cropped_mask > 127).astype(np.float32)[:, :, np.newaxis]
+            obj.matted_image = (obj.cropped_image * mask_float).astype(np.uint8)
+            
+            print(f"  Processed SAM for object {i+1}: {obj.description} (Square padded and smoothed)")
+       # Prepare bounding boxes for SAM
         boxes_tensor = torch.tensor([
             [obj.bbox.x1, obj.bbox.y1, obj.bbox.x2, obj.bbox.y2]
             for obj in detected_objects

@@ -67,12 +67,7 @@ class RenderCompareModule:
         
         if self.backend == "qwen":
             self.qwen_client = QwenVLClient()
-        elif self.backend == "clip":
-            self._initialize_clip()
-        elif self.backend == "orient_anything":
-            self._initialize_orient_anything()
-        else:
-            raise ValueError(f"Unknown backend: {backend}. Choose 'qwen', 'clip', or 'orient_anything'")
+        # Models will be lazy-loaded when needed to save VRAM
         
         # Rendering parameters
         self.image_size = 384    # Size of each rendered image
@@ -536,6 +531,10 @@ class RenderCompareModule:
         Returns:
             CLIP image features as tensor
         """        
+        # Lazy load CLIP if needed
+        if self.clip_model is None:
+            self._initialize_clip()
+            
         # Process image with CLIP processor
         from PIL import Image
         pil_image = Image.fromarray(image_rgb.astype(np.uint8))
@@ -654,8 +653,8 @@ class RenderCompareModule:
             Index of best matching view
         """
         if self.orient_anything_model is None:
-            raise RuntimeError("Orient-Anything model not initialized")
-        
+            self._initialize_orient_anything()
+            
         print("Predicting orientation using Orient-Anything (batch mode)...")
         
         # Convert numpy array to PIL Image
@@ -1006,6 +1005,15 @@ Return only the number of the best matching view.
                 print(f"Best matching view copied to: {best_view_copy.name}")
             
             print(f"Render-and-compare complete. Selected view {best_index} (elevation={results['elevation']}°, azimuth={results['azimuth']}°, roll={results['roll']}°)")
+            
+            # 🧠 Aggressive RAM Unload to prevent memory accumulation
+            self.clip_model = None
+            self.clip_processor = None
+            self.orient_anything_model = None
+            import gc, torch
+            gc.collect()
+            torch.cuda.empty_cache()
+            
             return rotation_matrix
             
         except Exception as e:

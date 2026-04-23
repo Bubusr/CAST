@@ -56,7 +56,7 @@ def save_ply_points(filename: str, points: np.ndarray) -> None:
 class MeshGenerationModule:
     """Module for 3D mesh generation using multiple APIs"""
 
-    def __init__(self, provider: Literal["tripo3d", "trellis", "hunyuan"] = "tripo3d", base_url: Optional[str] = None):
+    def __init__(self, provider: Literal["tripo3d", "trellis", "hunyuan"] = "hunyuan", base_url: Optional[str] = None):
         self.provider = provider
         self.base_url = base_url
         # Default to local TRELLIS deployment if no base_url specified for TRELLIS
@@ -402,13 +402,18 @@ class MeshGenerationModule:
             mesh = result['mesh']
             mesh = self.hunyuan_client.postprocess_mesh(mesh)
 
+            # 🛡️ CREATE ISOLATED DIRECTORY FOR EACH OBJECT
+            # This prevents Hunyuan-Paint from overwriting the albedo.png of previous objects
+            obj_mesh_dir = mesh_dir / f"object_{detected_object.id}"
+            obj_mesh_dir.mkdir(parents=True, exist_ok=True)
+
             # Save untextured mesh
-            untextured_mesh_path = mesh_dir / f"object_{detected_object.id}_hunyuan_untextured.glb"
+            untextured_mesh_path = obj_mesh_dir / "untextured.glb"
             mesh.export(str(untextured_mesh_path))
             print(f"  Saved untextured mesh to: {untextured_mesh_path}")
-            o3d.io.write_point_cloud(str(mesh_dir / f"object_{detected_object.id}_hunyuan_untextured.ply"), o3d_pcd)
-            print(" Saved point cloud to: ", mesh_dir / f"object_{detected_object.id}_hunyuan_untextured.ply")
-            save_ply_points(str(mesh_dir / f"object_{detected_object.id}_hunyuan_untextured_normed.ply"), result['sampled_point'].cpu().numpy())
+            o3d.io.write_point_cloud(str(obj_mesh_dir / "untextured.ply"), o3d_pcd)
+            print(" Saved point cloud to: ", obj_mesh_dir / "untextured.ply")
+            save_ply_points(str(obj_mesh_dir / "untextured_normed.ply"), result['sampled_point'].cpu().numpy())
                                                                                                                                              
             # Step 2: Generate texture using Hunyuan3D Paint
             print("  Step 2/2: Generating texture with Hunyuan3D Paint...")
@@ -417,35 +422,43 @@ class MeshGenerationModule:
             # If we have the original cropped image, use it; otherwise use generated
             texture_reference_image = detected_object.cropped_image if detected_object.cropped_image is not None else input_image
 
-            # # Generate textured mesh
-            # textured_mesh_path = mesh_dir / f"object_{detected_object.id}_hunyuan.obj"
+            # Generate textured mesh (.obj format to keep texture separate)
+            textured_mesh_path = obj_mesh_dir / "textured.obj"
 
-            # result_path = self.hunyuan_paint_client.generate_texture(
-            #     mesh_path=untextured_mesh_path,
-            #     image=texture_reference_image,
-            #     output_path=textured_mesh_path,
-            #     use_remesh=True,
-            #     save_glb=True
-            # )
+            result_path = self.hunyuan_paint_client.generate_texture(
+                mesh_path=untextured_mesh_path,
+                image=texture_reference_image,
+                output_path=textured_mesh_path,
+                use_remesh=True,
+                save_glb=False  # MUST be False so we get a separate .png file to upscale
+            )
 
-            # if result_path:
-            #     # Load the final textured mesh
-            #     # Hunyuan Paint saves both .obj and .glb if save_glb=True
-            #     final_mesh_path = Path(result_path).with_suffix('.glb') if Path(result_path).suffix == '.obj' else Path(result_path)
+            if result_path:
+                final_mesh_path = Path(result_path)
+                
+                # 🌟 REAL-ESRGAN: Upscale the baked UV texture map!
+                import glob
+                from ..utils.image_utils import upscale_image_resrgan, load_image, save_image
+                
+                # Find the generated PNG texture (usually named same as obj or albedo.png)
+                png_files = glob.glob(str(final_mesh_path.parent / "*.png"))
+                for png_file in png_files:
+                    print(f"  Upscaling baked UV texture: {Path(png_file).name} to 4K...")
+                    try:
+                        tex_img = load_image(png_file)
+                        upscaled_tex = upscale_image_resrgan(tex_img)
+                        save_image(upscaled_tex, png_file) # Overwrite with 4K version
+                    except Exception as e:
+                        print(f"  Failed to upscale texture: {e}")
 
-            #     if not final_mesh_path.exists():
-            #         # If GLB doesn't exist, use OBJ
-            #         final_mesh_path = Path(result_path)
+                mesh_3d = self._load_mesh_from_file(final_mesh_path)
 
-            #     mesh_3d = self._load_mesh_from_file(final_mesh_path)
-
-            #     if mesh_3d:
-            #         print(f"  Successfully generated Hunyuan3D mesh for object {detected_object.id}")
-            #         return mesh_3d
-            #     else:
-            #         print(f"  Failed to load final Hunyuan3D mesh for object {detected_object.id}")
-            # else:
-            if True:
+                if mesh_3d:
+                    print(f"  Successfully generated Hunyuan3D textured mesh for object {detected_object.id}")
+                    return mesh_3d
+                else:
+                    print(f"  Failed to load final Hunyuan3D mesh for object {detected_object.id}")
+            else:
                 print(f"  Failed Hunyuan3D Paint texture generation for object {detected_object.id}")
                 # Fall back to untextured mesh
                 print("  Using untextured mesh as fallback...")
@@ -751,6 +764,15 @@ class MeshGenerationModule:
 
         successful_meshes = sum(1 for mesh in meshes if mesh is not None)
         print(f"Hunyuan3D batch generation complete. {successful_meshes}/{len(valid_objects)} successful.")
+
+        # 🧠 Aggressive RAM Unload to prevent memory accumulation
+        if self.hunyuan_client:
+            self.hunyuan_client.unload_model()
+        if self.hunyuan_paint_client:
+            self.hunyuan_paint_client.unload_model()
+        import gc, torch
+        gc.collect()
+        torch.cuda.empty_cache()
 
         return meshes
 

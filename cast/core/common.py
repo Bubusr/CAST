@@ -44,6 +44,8 @@ class DetectedObject:
     generated_image: Optional[np.ndarray] = None
     vlm_caption: Optional[str] = None  # VLM-generated concise caption for improved inpainting
     material: str = "soft"  # Material extracted by VLM (e.g., 'wood', 'metal', 'glass', 'soft')
+    metallic: float = 0.0   # Metallic value for PBR (0.0 to 1.0)
+    roughness: float = 0.5  # Roughness value for PBR (0.0 to 1.0)
 
 @dataclass
 class MeshPose:
