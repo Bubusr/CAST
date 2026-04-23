@@ -242,6 +242,13 @@ class DetectionSegmentationModule:
             detected_objects.append(detected_obj)
 
         print(f"Detected {len(detected_objects)} objects")
+        # 🧠 Aggressive RAM Unload to prevent OOM
+        self.ram_model = None
+        self.grounding_dino_model = None
+        import gc
+        gc.collect()
+        import torch
+        torch.cuda.empty_cache()
         return detected_objects
     
     def segment_objects(self, image: np.ndarray, detected_objects: List[DetectedObject],
@@ -333,6 +340,12 @@ class DetectionSegmentationModule:
             obj.cropped_occ_mask = crop_image_with_bbox(obj.occ_mask, crop_coords)
         
         print(f"Segmentation complete for {len(detected_objects)} objects")
+        # 🧠 Aggressive RAM Unload to prevent OOM
+        self.sam_model = None
+        import gc
+        gc.collect()
+        import torch
+        torch.cuda.empty_cache()
         return detected_objects
     
     def run(self, image: np.ndarray, output_dir: Optional[Path] = None,
