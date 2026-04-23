@@ -11,6 +11,7 @@ import json
 import cv2
 from pathlib import Path
 import torch
+import gc
 import torchvision
 from PIL import Image
 
@@ -153,7 +154,6 @@ class DetectionSegmentationModule:
         return boxes_filt, torch.Tensor(scores), pred_phrases
     
     def detect_objects(self, image: np.ndarray) -> List[DetectedObject]:
-        import torch, gc
         """
         Detect objects using RAM + Grounding DINO (bboxes only, no segmentation)
         
@@ -252,7 +252,6 @@ class DetectionSegmentationModule:
     
     def segment_objects(self, image: np.ndarray, detected_objects: List[DetectedObject],
                        use_sam_hq: bool = False) -> List[DetectedObject]:
-        import torch, gc
         """
         Segment detected objects using SAM
         
