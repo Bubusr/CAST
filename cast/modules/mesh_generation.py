@@ -538,7 +538,17 @@ class MeshGenerationModule:
             if self.trellis_client.is_local:
                 return self._batch_generate_meshes_trellis_sync(detected_objects, output_dir, **provider_kwargs)
             else:
-                return asyncio.run(self._batch_generate_meshes_async(detected_objects, output_dir, **provider_kwargs))
+                # Use a safer way to run async code in Jupyter/Colab
+                try:
+                    import asyncio
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # If loop is already running (Jupyter), we use this to avoid RuntimeError
+                        import nest_asyncio
+                        nest_asyncio.apply()
+                    return asyncio.run(self._batch_generate_meshes_async(detected_objects, output_dir, **provider_kwargs))
+                except Exception:
+                    return asyncio.run(self._batch_generate_meshes_async(detected_objects, output_dir, **provider_kwargs))
         elif self.provider == "hunyuan":
             # Use Hunyuan with point cloud conditioning
             return self._batch_generate_meshes_hunyuan(detected_objects, output_dir, depth_estimation, image,

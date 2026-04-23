@@ -153,6 +153,7 @@ class DetectionSegmentationModule:
         return boxes_filt, torch.Tensor(scores), pred_phrases
     
     def detect_objects(self, image: np.ndarray) -> List[DetectedObject]:
+        import torch, gc
         """
         Detect objects using RAM + Grounding DINO (bboxes only, no segmentation)
         
@@ -245,14 +246,13 @@ class DetectionSegmentationModule:
         # 🧠 Aggressive RAM Unload to prevent OOM
         self.ram_model = None
         self.grounding_dino_model = None
-        import gc
         gc.collect()
-        import torch
         torch.cuda.empty_cache()
         return detected_objects
     
     def segment_objects(self, image: np.ndarray, detected_objects: List[DetectedObject],
                        use_sam_hq: bool = False) -> List[DetectedObject]:
+        import torch, gc
         """
         Segment detected objects using SAM
         
@@ -342,9 +342,7 @@ class DetectionSegmentationModule:
         print(f"Segmentation complete for {len(detected_objects)} objects")
         # 🧠 Aggressive RAM Unload to prevent OOM
         self.sam_model = None
-        import gc
         gc.collect()
-        import torch
         torch.cuda.empty_cache()
         return detected_objects
     

@@ -67,7 +67,14 @@ class ReplicateClient:
             image_b64 = image
 
         try:
-            # loop = asyncio.get_event_loop()
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    import nest_asyncio
+                    nest_asyncio.apply()
+            except Exception:
+                pass
             output = asyncio.run(
                 run_core(
                     config.models.ram_grounded_sam_model,
@@ -106,6 +113,14 @@ class ReplicateClient:
             mask_b64 = mask
 
         try:
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    import nest_asyncio
+                    nest_asyncio.apply()
+            except Exception:
+                pass
             output = asyncio.run(
                 run_core(config.models.sd_inpainting_model,
                          input={
