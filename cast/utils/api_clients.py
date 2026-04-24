@@ -1158,6 +1158,10 @@ class Hunyuan3DClient:
 
             # Add thirdparty paths
             hunyuan_omni_path = Path(__file__).parent.parent.parent / "thirdparty" / "Hunyuan3D-Omni"
+            if not hunyuan_omni_path.exists():
+                import os
+                print("Downloading Hunyuan3D-Omni (Auto-Fix)...")
+                os.system(f'cd "{hunyuan_omni_path.parent}" && git clone https://github.com/Tencent-Hunyuan/Hunyuan3D-Omni')
             if str(hunyuan_omni_path) not in sys.path:
                 sys.path.insert(0, str(hunyuan_omni_path))
 
@@ -1338,6 +1342,10 @@ class Hunyuan3DPaintClient:
             # Add thirdparty paths
             hunyuan_paint_path = Path(__file__).parent.parent.parent / "thirdparty" / "Hunyuan3D-2.1"
             hunyuan_paint_dr_path = Path(__file__).parent.parent.parent / "thirdparty" / "Hunyuan3D-2.1" / "hy3dpaint"
+            if not hunyuan_paint_path.exists():
+                import os
+                print("Downloading Hunyuan3D-Paint (Auto-Fix)...")
+                os.system(f'cd "{hunyuan_paint_path.parent}" && git clone https://github.com/Tencent-Hunyuan/Hunyuan3D-2 Hunyuan3D-2.1')
             if str(hunyuan_paint_path) not in sys.path:
                 sys.path.insert(0, str(hunyuan_paint_path))
                 sys.path.insert(0, str(hunyuan_paint_dr_path))
