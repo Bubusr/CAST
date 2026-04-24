@@ -292,7 +292,8 @@ class DetectionSegmentationModule:
         if not detected_objects:
             print("No objects to segment")
             return detected_objects
-           # Prepare for SAM
+        # Prepare for SAM
+        image_rgb = image
         print(f"Running SAM for {len(detected_objects)} objects...")
         
         # Aggressive RAM Unload: Grounding DINO is no longer needed
@@ -366,7 +367,7 @@ class DetectionSegmentationModule:
             for obj in detected_objects
         ], dtype=torch.float32)
         
-        transformed_boxes = predictor.transform.apply_boxes_torch(
+        transformed_boxes = self.predictor.transform.apply_boxes_torch(
             boxes_tensor, image.shape[:2]
         ).to(self.device)
         
@@ -379,7 +380,7 @@ class DetectionSegmentationModule:
 
         # Run SAM inference with both boxes and point prompts
         with torch.no_grad():
-            masks, _, _ = predictor.predict_torch(
+            masks, _, _ = self.predictor.predict_torch(
                 point_coords=center_points,
                 point_labels=point_labels,
                 boxes=transformed_boxes,
@@ -427,7 +428,8 @@ class DetectionSegmentationModule:
         
         print(f"Segmentation complete for {len(detected_objects)} objects")
         # 🧠 Aggressive RAM Unload to prevent OOM
-        self.sam_model = None
+        self.sam_predictor = None
+        self.predictor = None
         gc.collect()
         torch.cuda.empty_cache()
         return detected_objects
