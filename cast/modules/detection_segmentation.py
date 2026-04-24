@@ -307,7 +307,7 @@ class DetectionSegmentationModule:
         for i, obj in enumerate(detected_objects):
             # 1. Square Padding & Centering (Fixes "Chipped/Distorted Mesh")
             # Calculate square bounding box with padding
-            x1, y1, x2, y2 = obj.box
+            x1, y1, x2, y2 = obj.bbox.x1, obj.bbox.y1, obj.bbox.x2, obj.bbox.y2
             w = x2 - x1
             h = y2 - y1
             
@@ -326,7 +326,7 @@ class DetectionSegmentationModule:
             new_y2 = min(image_rgb.shape[0], int(center_y + side_with_padding / 2))
             
             # Update object box to the squared version for better mesh generation
-            obj.box = [new_x1, new_y1, new_x2, new_y2]
+            obj.bbox = BoundingBox(new_x1, new_y1, new_x2, new_y2)
             
             # 2. Point Prompting (Fixes "Occlusion/Stuck Objects")
             # Use the center of the original box as a point prompt
