@@ -12,6 +12,32 @@ import cv2
 from pathlib import Path
 import torch
 import gc
+# --- START MONKEY PATCH FOR PILLOW/TORCHVISION ---
+try:
+    from PIL import _typing
+except ImportError:
+    class DummyTyping: pass
+    import sys, PIL
+    sys.modules['PIL._typing'] = DummyTyping()
+    PIL._typing = DummyTyping()
+import PIL._typing
+if not hasattr(PIL._typing, '_Ink'):
+    PIL._typing._Ink = type('DummyInk', (), {})
+
+try:
+    from PIL import _util
+except ImportError:
+    class DummyUtil: pass
+    import sys, PIL
+    sys.modules['PIL._util'] = DummyUtil()
+    PIL._util = DummyUtil()
+import PIL._util
+if not hasattr(PIL._util, 'is_directory'):
+    PIL._util.is_directory = lambda f: False
+if not hasattr(PIL._util, 'is_path'):
+    PIL._util.is_path = lambda f: isinstance(f, (str, bytes))
+# --- END MONKEY PATCH ---
+
 import torchvision
 from PIL import Image
 
