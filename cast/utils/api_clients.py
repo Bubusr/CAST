@@ -7,7 +7,10 @@ import time
 import base64
 import asyncio
 import mimetypes
-import dashscope
+try:
+    import dashscope
+except ImportError:
+    dashscope = None
 from typing import Dict, Any, Optional, List, Union
 from pathlib import Path
 import replicate
