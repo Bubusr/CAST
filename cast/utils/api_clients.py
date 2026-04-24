@@ -13,7 +13,10 @@ except ImportError:
     dashscope = None
 from typing import Dict, Any, Optional, List, Union
 from pathlib import Path
-import replicate
+try:
+    import replicate
+except ImportError:
+    replicate = None
 from httpx import Timeout
 from openai import OpenAI
 
