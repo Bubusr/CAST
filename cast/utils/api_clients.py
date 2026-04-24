@@ -24,7 +24,8 @@ from ..config.settings import config
 from .image_utils import image_to_base64
 import numpy as np
 
-dashscope.base_http_api_url = 'https://dashscope.aliyuncs.com/api/v1'
+if dashscope:
+    dashscope.base_http_api_url = 'https://dashscope.aliyuncs.com/api/v1'
 
 REPLICATE_TIMEOUT = Timeout(
     10080.0,  # default timeout
@@ -40,7 +41,7 @@ class ReplicateClient:
 
     def __init__(self, api_token: Optional[str] = None):
         self.api_token = api_token or config.api.replicate_token
-        self.client = replicate.Client(api_token=self.api_token, timeout=600)
+        self.client = replicate.Client(api_token=self.api_token, timeout=600) if replicate else None
 
     def run_ram_grounded_sam(self,
                              image: Union[np.ndarray, str],
