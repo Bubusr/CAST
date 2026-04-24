@@ -292,7 +292,7 @@ class QwenVLClient:
                         or config.api.dashscope_key)
         
         # Default to GitHub Models endpoint if GITHUB_TOKEN is present
-        _default_base = "https://models.inference.ai.azure.com" if os.getenv("GITHUB_TOKEN") else "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        _default_base = "https://models.inference.ai.azure.com" if (os.getenv("GITHUB_TOKEN") or os.getenv("OPENAI_API_KEY")) else "https://dashscope.aliyuncs.com/compatible-mode/v1"
         
         _base_url = os.getenv("OPENAI_BASE_URL", _default_base)
         self.client = OpenAI(api_key=self.api_key, base_url=_base_url)

@@ -33,11 +33,11 @@ class ImageGenerationModule:
         
         if self.provider == "replicate":
             self.replicate_client = ReplicateClient()
-        elif self.provider == "qwen":
+        elif self.provider in ["qwen", "github"]:
             # Qwen client already initialized
             self.replicate_client = None
         else:
-            raise ValueError(f"Unsupported provider: {provider}. Use 'replicate' or 'qwen'")
+            raise ValueError(f"Unsupported provider: {provider}. Use 'replicate', 'qwen' or 'github'")
     
     def _check_existing_generated_image(self, detected_object: DetectedObject, 
                                        output_dir: Optional[Path]) -> Optional[np.ndarray]:
