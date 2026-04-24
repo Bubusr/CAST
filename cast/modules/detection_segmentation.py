@@ -276,7 +276,7 @@ class DetectionSegmentationModule:
         torch.cuda.empty_cache()
         
         # Load SAM
-        self.load_sam()
+        self.predictor = self._load_sam_predictor(use_sam_hq=use_sam_hq)
         
         for i, obj in enumerate(detected_objects):
             # 1. Square Padding & Centering (Fixes "Chipped/Distorted Mesh")
