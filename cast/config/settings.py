@@ -2,8 +2,12 @@
 Configuration settings for CAST pipeline
 """
 import os
+from pathlib import Path
 from typing import Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+# CAST root directory (2 levels up from this file: cast/config/settings.py -> CAST/)
+_CAST_ROOT = Path(__file__).parent.parent.parent.resolve()
 
 
 @dataclass
@@ -23,11 +27,11 @@ class APIConfig:
 @dataclass
 class ModelConfig:
     """Model configuration settings"""
-    # Local Grounded-SAM paths
-    grounding_dino_config: str = "thirdparty/Grounded-Segment-Anything/GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py"
-    grounding_dino_checkpoint: str = "thirdparty/Grounded-Segment-Anything/groundingdino_swint_ogc.pth"
-    ram_checkpoint: str = "thirdparty/Grounded-Segment-Anything/ram_swin_large_14m.pth"
-    sam_checkpoint: str = "thirdparty/Grounded-Segment-Anything/sam_vit_h_4b8939.pth"
+    # Local Grounded-SAM paths (always absolute, resolved from CAST root)
+    grounding_dino_config: str = str(_CAST_ROOT / "thirdparty/Grounded-Segment-Anything/GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py")
+    grounding_dino_checkpoint: str = str(_CAST_ROOT / "thirdparty/Grounded-Segment-Anything/groundingdino_swint_ogc.pth")
+    ram_checkpoint: str = str(_CAST_ROOT / "thirdparty/Grounded-Segment-Anything/ram_swin_large_14m.pth")
+    sam_checkpoint: str = str(_CAST_ROOT / "thirdparty/Grounded-Segment-Anything/sam_vit_h_4b8939.pth")
     sam_hq_checkpoint: Optional[str] = None
     
     # Detection thresholds
