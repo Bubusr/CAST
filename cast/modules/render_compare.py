@@ -20,13 +20,25 @@ from transformers import CLIPProcessor, CLIPModel
 # Try to import Orient-Anything
 try:
     orient_anything_path = Path(__file__).parent.parent.parent / "thirdparty" / "Orient-Anything"
-    if orient_anything_path.exists() and str(orient_anything_path) not in sys.path:
-        sys.path.insert(0, str(orient_anything_path))
+    # Search for the directory containing orient_anything_wrapper.py
+    actual_path = None
+    if orient_anything_path.exists():
+        for root, dirs, files in os.walk(orient_anything_path):
+            if "orient_anything_wrapper.py" in files:
+                actual_path = Path(root)
+                break
+    
+    if actual_path and str(actual_path) not in sys.path:
+        sys.path.insert(0, str(actual_path))
+        # Also insert its parent if it's inside a nested folder
+        if actual_path.name == "orient_anything":
+            sys.path.insert(0, str(actual_path.parent))
+
     from orient_anything_wrapper import OrientAnythingPredictor, ORIENT_ANYTHING_AVAILABLE
 except ImportError as e:
     ORIENT_ANYTHING_AVAILABLE = False
     OrientAnythingPredictor = None
-    print(f"Warning: Orient-Anything not available: {e}")
+    print(f"Warning: Orient-Anything not available (Path searched: {orient_anything_path}): {e}")
 
 from ..core.common import Mesh3D, DetectedObject
 from ..utils.api_clients import QwenVLClient

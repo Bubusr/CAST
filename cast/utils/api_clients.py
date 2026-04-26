@@ -1169,6 +1169,8 @@ class Hunyuan3DClient:
 
             print(f"Loading Hunyuan3D-Omni from {self.repo_id}...")
             self.pipeline = Hunyuan3DOmniSiTFlowMatchingPipeline.from_pretrained(self.repo_id,
+                                                                                 torch_dtype=torch.float16,
+                                                                                 low_cpu_mem_usage=True,
                                                                                  fast_decode=self.fast_decode)
             print("Hunyuan3D-Omni model loaded successfully")
             return True

@@ -251,8 +251,18 @@ class MeshGenerationModule:
                 else:
                     mesh_path = Path(f"object_{detected_object.id}_trellis.glb")
 
+                if hasattr(model_url, 'read'):
+                    model_data = model_url.read()
+                else:
+                    import requests
+                    if str(model_url).startswith('http'):
+                        model_data = requests.get(model_url).content
+                    else:
+                        with open(str(model_url), 'rb') as f:
+                            model_data = f.read()
+
                 with open(mesh_path, "wb") as f:
-                    f.write(model_url.read())
+                    f.write(model_data)
 
                 # Download mesh file
                 if os.path.exists(mesh_path):
@@ -761,6 +771,11 @@ class MeshGenerationModule:
 
                 mesh = self.generate_mesh_for_object_hunyuan(obj, output_dir, point_cloud=point_cloud, **hunyuan_kwargs)
                 meshes.append(mesh)
+                
+                # 🧠 Per-object cleanup to prevent VRAM accumulation
+                import gc, torch
+                gc.collect()
+                torch.cuda.empty_cache()
 
         successful_meshes = sum(1 for mesh in meshes if mesh is not None)
         print(f"Hunyuan3D batch generation complete. {successful_meshes}/{len(valid_objects)} successful.")
@@ -836,7 +851,7 @@ class MeshGenerationModule:
         }
 
         for i, (obj, mesh) in enumerate(zip(detected_objects, meshes)):
-            if mesh.input_image is not None:
+            if mesh and mesh.input_image is not None:
                 save_image(mesh.input_image, mesh_dir / f"object_{obj.id}_input_image.png")
 
             obj_summary = {

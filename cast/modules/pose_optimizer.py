@@ -16,6 +16,7 @@ except Exception as e:
     print("Pytorch3d is not installed, using custom chamfer distance")
     pass 
 from typing import Optional, Tuple
+from pathlib import Path
 
 
 class PyTorchPoseOptimizer(nn.Module):
@@ -28,7 +29,18 @@ class PyTorchPoseOptimizer(nn.Module):
         else:
             self.device = torch.device(device)
         # load the predefined rotation matrices 
-        self.rot_matrices = torch.from_numpy(np.load("./assets/init_rot_matrices.npy")).float().to(self.device)
+        cast_root = Path(__file__).parent.parent.parent
+        assets_path = cast_root / "assets" / "init_rot_matrices.npy"
+        if not assets_path.exists():
+            # Fallback for alternative structures
+            assets_path = Path("./assets/init_rot_matrices.npy")
+            
+        if assets_path.exists():
+            self.rot_matrices = torch.from_numpy(np.load(str(assets_path))).float().to(self.device)
+        else:
+            print(f"Warning: {assets_path} not found. Using identity rotation.")
+            self.rot_matrices = torch.eye(3).unsqueeze(0).to(self.device)
+            
         print(f"PyTorch pose optimizer using device: {self.device}")
     
     def chamfer_distance_3d(self, source_points: torch.Tensor, target_points: torch.Tensor,

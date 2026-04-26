@@ -412,7 +412,7 @@ class PoseEstimationModule:
             distance_threshold = voxel_size * 1.5
             result = o3d.pipelines.registration.registration_ransac_based_on_feature_matching(
                 source_down, target_down, source_fpfh, target_fpfh, True, distance_threshold,
-                o3d.pipelines.registration.TransformationEstimationPointToPoint(False),
+                o3d.pipelines.registration.TransformationEstimationPointToPoint(True), # Allow Scaling
                 3, [
                     o3d.pipelines.registration.CorrespondenceCheckerBasedOnEdgeLength(0.9),
                     o3d.pipelines.registration.CorrespondenceCheckerBasedOnDistance(distance_threshold)

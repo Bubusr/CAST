@@ -33,9 +33,10 @@ except ImportError:
     PIL._util = DummyUtil()
 import PIL._util
 if not hasattr(PIL._util, 'is_directory'):
-    PIL._util.is_directory = lambda f: False
+    import os
+    PIL._util.is_directory = lambda f: os.path.isdir(f) if isinstance(f, (str, bytes, Path)) else False
 if not hasattr(PIL._util, 'is_path'):
-    PIL._util.is_path = lambda f: isinstance(f, (str, bytes))
+    PIL._util.is_path = lambda f: isinstance(f, (str, bytes, Path))
 # --- END MONKEY PATCH ---
 
 import torchvision
@@ -297,7 +298,7 @@ class DetectionSegmentationModule:
         print(f"Running SAM for {len(detected_objects)} objects...")
         
         # Aggressive RAM Unload: Grounding DINO is no longer needed
-        self.model = None
+        self.grounding_dino_model = None
         import gc
         gc.collect()
         torch.cuda.empty_cache()

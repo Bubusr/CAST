@@ -3,6 +3,17 @@ Main CAST Pipeline
 
 This module orchestrates the complete Component-Aligned 3D Scene Reconstruction pipeline.
 """
+# --- TRANSFORMERS COMPATIBILITY PATCH ---
+import transformers.modeling_utils as _mu
+try:
+    import transformers.pytorch_utils as _pu
+    for _name in ['apply_chunking_to_forward', 'find_pruneable_heads_and_indices', 'prune_linear_layer']:
+        if not hasattr(_mu, _name) and hasattr(_pu, _name):
+            setattr(_mu, _name, getattr(_pu, _name))
+except ImportError:
+    pass
+# --- END PATCH ---
+
 from typing import Optional, Dict, Any, List, Literal
 from pathlib import Path
 import time
