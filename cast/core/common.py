@@ -65,8 +65,8 @@ class MeshPose:
             
         # Compose the transformation matrix from rotation, scale and translation
         transform = np.eye(4)
-        # Add rotation and scale
-        transform[:3,:3] = self.rotation * self.scale.reshape(3,1)
+        # Add rotation and scale (column-wise scaling for local object axes)
+        transform[:3,:3] = self.rotation * self.scale
         # Add translation
         transform[:3,3] = self.translation
         self.transform = transform

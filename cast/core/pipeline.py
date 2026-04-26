@@ -402,25 +402,29 @@ class CASTPipeline:
             
             refined_meshes = []
             for i, (mesh, obj) in enumerate(zip(meshes, valid_objects)):
-                if mesh and mesh.file_path:
-                    print(f"Refining object {i+1}/{len(valid_objects)}: {obj.description}...")
-                    
-                    # 2. Blender Refinement (Subsurf + PBR)
-                    refined_path = self.refiner_module.refine_mesh(mesh.file_path, obj)
-                    if refined_path:
-                        # Update mesh data with refined file
-                        mesh.file_path = refined_path
-                        # Re-load vertices and faces from refined mesh if needed for pose
-                        import trimesh
-                        m = trimesh.load(refined_path)
-                        if isinstance(m, trimesh.Scene):
-                            m = m.dump(concatenate=True)
-                        mesh.vertices = np.asarray(m.vertices)
-                        mesh.faces = np.asarray(m.faces)
-                        print(f"  Successfully refined and upscaled {obj.description}")
-                    
-                    refined_meshes.append(mesh)
-                else:
+                try:
+                    if mesh and mesh.file_path:
+                        print(f"Refining object {i+1}/{len(valid_objects)}: {obj.description}...")
+                        
+                        # 2. Blender Refinement (Subsurf + PBR)
+                        refined_path = self.refiner_module.refine_mesh(mesh.file_path, obj)
+                        if refined_path:
+                            # Update mesh data with refined file
+                            mesh.file_path = refined_path
+                            # Re-load vertices and faces from refined mesh if needed for pose
+                            import trimesh
+                            m = trimesh.load(refined_path)
+                            if isinstance(m, trimesh.Scene):
+                                m = m.dump(concatenate=True)
+                            mesh.vertices = np.asarray(m.vertices)
+                            mesh.faces = np.asarray(m.faces)
+                            print(f"  Successfully refined and upscaled {obj.description}")
+                        
+                        refined_meshes.append(mesh)
+                    else:
+                        refined_meshes.append(mesh)
+                except Exception as e:
+                    print(f"  Warning: Failed to refine object {obj.id} ({obj.description}): {e}")
                     refined_meshes.append(mesh)
             
             meshes = refined_meshes
